@@ -6,12 +6,15 @@ import Action_Function
 import json
 import csv
 import random
+from sklearn.neighbors import KernelDensity
+from scipy.spatial import KDTree
+import numpy as np
 
 def calc_reward_next_state_and_log(effective_player_action, full_state_before, is_showdown, winner):
     #calculate the reward based on player action, get the new state and log to the file
-    #reward = Reward_Function.calculate_reward(effective_player_action, full_state_before, pot, is_showdown, winner, baseline=10)
+    reward = Reward_Function.calculate_reward(effective_player_action, full_state_before, pot, is_showdown, winner, baseline=10)
     
-    #print(f"Player Reward: {reward:.2f}")
+    print(f"Player Reward: {reward:.2f}")
 
     full_state_after = State_Generation_Methods.generate_state(player_hole_cards, board_cards, hole_card_probability_file)
     full_state_after.update({ #bucket bankroll so that it is easier to store
@@ -19,9 +22,9 @@ def calc_reward_next_state_and_log(effective_player_action, full_state_before, i
         "Player Bankroll": round(player_bankroll / 20) if player_bankroll > 0 else 0,
         "Opponent Bankroll": round(opponent_bankroll / 20) if opponent_bankroll > 0 else 0,
     })
-    #print("Next State:",json.dumps(full_state_before, indent=4))
+    print("Next State:",json.dumps(full_state_before, indent=4))
     
-    #State_Generation_Methods.export_training_data(csv_file, full_state_before, effective_player_action, reward, full_state_after)
+    State_Generation_Methods.export_training_data(csv_file, full_state_before, effective_player_action, reward, full_state_after)
 
 
 def calc_full_state_before():
@@ -48,7 +51,7 @@ def run_showdown(effective_player_action, full_state_before, board_cards, player
     player_bankroll, opponent_bankroll, pot,winner = Game_Methods.determine_showdown_winner(
         board_cards, player_hole_cards, opponent_hole_cards, pot, player_bankroll, opponent_bankroll
     )
-    #calc_reward_next_state_and_log(effective_player_action, full_state_before, is_showdown, winner)
+    calc_reward_next_state_and_log(effective_player_action, full_state_before, is_showdown, winner)
     pot = 0  #make sure the pot is set back to 0
     return player_bankroll, opponent_bankroll, pot
 
@@ -57,7 +60,7 @@ def handle_player_fold(effective_player_action,player_bankroll,opponent_bankroll
         print(f"Player folds. Opponent wins the pot of {pot:.2f}.")
         opponent_bankroll += pot  #sransfer pot to the opponent
         pot = 0  #reset pot
-        #calc_reward_next_state_and_log("Fold", full_state_before, is_showdown=True, winner="Opponent")
+        calc_reward_next_state_and_log("Fold", full_state_before, is_showdown=True, winner="Opponent")
         return player_bankroll, opponent_bankroll, pot, True  #end the round
         
 def handle_opponent_fold(effective_opponent_action,player_bankroll,opponent_bankroll, pot,full_state_before):
@@ -65,14 +68,8 @@ def handle_opponent_fold(effective_opponent_action,player_bankroll,opponent_bank
         print(f"Opponent folds. Player wins the pot of {pot:.2f}.")
         player_bankroll += pot  #sransfer pot to the player
         pot = 0  #reset pot
-        #calc_reward_next_state_and_log("Call", full_state_before, is_showdown=True, winner="Player")
+        calc_reward_next_state_and_log("Call", full_state_before, is_showdown=True, winner="Player")
         return player_bankroll, opponent_bankroll, pot, True  #end the round
-    
-from scipy.spatial import KDTree
-import numpy as np
-
-from scipy.spatial import KDTree
-import numpy as np
 
 def load_policy(policy_file):
     """
@@ -95,6 +92,14 @@ def load_policy(policy_file):
             policy_actions.append(action)
 
     return np.array(policy_states), policy_actions
+
+def get_action_kde(policy_states, policy_actions, current_state, bandwidth=1.0):
+    kde = KernelDensity(bandwidth=bandwidth)
+    kde.fit(policy_states)
+    current_state_array = [current_state[key] for key in current_state]
+    log_density = kde.score_samples([current_state_array])
+    action = policy_actions[np.argmax(log_density)]
+    return action
 
 def get_policy_action(policy_states, policy_actions, current_state):
     """
@@ -126,8 +131,7 @@ def get_policy_action(policy_states, policy_actions, current_state):
     return action
 
 
-
-def play_phase(phase, player_hole_cards, opponent_bankroll, player_bankroll, pot, board_cards, raise_count):
+def play_phase(phase, player_hole_cards, opponent_bankroll, player_bankroll, pot, board_cards):
     #main script for playing a turn of poker
     policy_states, policy_actions = load_policy(policy_file)
     """Play a single phase of the game."""
@@ -145,7 +149,8 @@ def play_phase(phase, player_hole_cards, opponent_bankroll, player_bankroll, pot
 
         # Player's turn
         player_action_space = ["Check", "Bet Big", "Bet Small", "Fold"]
-        policy_action = get_policy_action(policy_states, policy_actions, full_state_before)
+        #policy_action = get_policy_action(policy_states, policy_actions, full_state_before)
+        policy_action = get_action_kde(policy_states, policy_actions, full_state_before)
         player_bankroll, pot, effective_player_action, player_bet, raise_count = Action_Function.handle_action(
             entity="Player",  # Correct capitalization
             action_space=player_action_space,
@@ -212,12 +217,13 @@ def play_phase(phase, player_hole_cards, opponent_bankroll, player_bankroll, pot
             return player_bankroll, opponent_bankroll, pot, True
 
         # Log the updated state and reward
-        #calc_reward_next_state_and_log(effective_player_action, full_state_before, is_showdown, winner=None)
+        calc_reward_next_state_and_log(effective_player_action, full_state_before, is_showdown, winner=None)
 
         # If the opponent bets or raises, the player must respond
         if effective_opponent_action in ["Bet Big", "Bet Small", "Raise Big", "Raise Small"]:
             player_action_space = ["Call", "Raise Big", "Raise Small", "Fold"]
-            policy_action = get_policy_action(policy_states, policy_actions, full_state_before)
+            #policy_action = get_policy_action(policy_states, policy_actions, full_state_before)
+            policy_action = get_action_kde(policy_states, policy_actions, full_state_before)
             player_bankroll, pot, effective_player_action, player_bet, raise_count = Action_Function.handle_action(
                 entity="Player",
                 action_space=player_action_space,
@@ -315,7 +321,8 @@ def play_phase(phase, player_hole_cards, opponent_bankroll, player_bankroll, pot
         else:
             player_action_space = ["Check", "Bet Big", "Bet Small", "Fold"]
         #generate player inital action
-        policy_action = get_policy_action(policy_states, policy_actions, full_state_before)
+        #policy_action = get_policy_action(policy_states, policy_actions, full_state_before)
+        policy_action = get_action_kde(policy_states, policy_actions, full_state_before)
         player_bankroll, pot, effective_player_action, player_bet,raise_count = Action_Function.handle_action(
             entity="Player",
             action_space=player_action_space,
@@ -347,7 +354,7 @@ def play_phase(phase, player_hole_cards, opponent_bankroll, player_bankroll, pot
             return player_bankroll, opponent_bankroll, pot, True
 
         #if this is not a showdown, log the updated state and reward from the previous player action
-        #calc_reward_next_state_and_log(effective_player_action, full_state_before, is_showdown, winner=None)
+        calc_reward_next_state_and_log(effective_player_action, full_state_before, is_showdown, winner=None)
 
         # if the player bet or raised, the opponent must respond with an action in the new action space
         if effective_player_action in ["Bet Big", "Bet Small", "Raise Big", "Raise Small"]:
@@ -380,7 +387,8 @@ def play_phase(phase, player_hole_cards, opponent_bankroll, player_bankroll, pot
             # if the opponent raised, the player can call or fold. Limiting to 1 raise keeps the training fast
             if effective_opponent_action in ["Raise Big", "Raise Small"]:
                 player_action_space = ["Call","Fold"]
-                policy_action = get_policy_action(policy_states, policy_actions, full_state_before)
+                #policy_action = get_policy_action(policy_states, policy_actions, full_state_before)
+                policy_action = get_action_kde(policy_states, policy_actions, full_state_before)
                 player_bankroll, pot, effective_player_action, player_bet,raise_count = Action_Function.handle_action(
                     entity="Player",
                     action_space=player_action_space,
@@ -407,21 +415,14 @@ def play_phase(phase, player_hole_cards, opponent_bankroll, player_bankroll, pot
 
 if __name__ == "__main__":
     default_bankroll = 100  #sefault starting bankroll for both players
-    num_games = 250  #number of games to simulate for training
-    results_file = "game_results.csv"
-    num_hands = 0
-    wins = 0 
-    losses = 0
-    with open(results_file, "w", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=["Game", "Result", "Wins", "Losses"])
-            writer.writeheader()
+    num_games = 20000  #number of games to simulate for training
+    policy_file = "QLearning_policy.polcy"
 
     for game in range(1, num_games + 1):
         print(f"\n--- Starting Game {game} ---")
         player_bankroll = default_bankroll
         opponent_bankroll = default_bankroll
         game_hand_count = 0
-        policy_file = "QLearning_policy.policy"
 
         while player_bankroll > 0.5 and opponent_bankroll > 0.5: # make sure there is at least 1 chip able to be played
             print(f"\nPlayer Bankroll: {player_bankroll:.2f}, Opponent Bankroll: {opponent_bankroll:.2f}")
@@ -442,29 +443,15 @@ if __name__ == "__main__":
             # Play through the phases of the hand
             game_ended = False
             for phase in ["Hole Cards", "Flop", "Turn", "River"]:
-                player_bankroll, opponent_bankroll, pot, game_ended = play_phase(phase, player_hole_cards, opponent_bankroll, player_bankroll, pot, board_cards,policy_file)
+                player_bankroll, opponent_bankroll, pot, game_ended = play_phase(phase, player_hole_cards, opponent_bankroll, player_bankroll, pot, board_cards)
                 print(f'Main Loop Player bankroll:{player_bankroll}')
                 print(f'Main Loop Opponent bankroll:{opponent_bankroll}')
                 if game_ended:
                     break
-                    
                 board_cards = Game_Methods.transition_to_next_phase(phase, deck, board_cards)
-            num_hands += 1
-        
-        result = "Win" if player_bankroll > opponent_bankroll else "Loss"
-        print(f"Game {game} Result: {result}")
-        if result == "Win":
-            wins += 1
-        else:
-            losses += 1
-
-        # Append the result to the CSV file
-        with open(results_file, "a", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=["Game", "Result", "Wins", "Losses"])
-            writer.writerow({"Game": game, "Result": result, "Wins": wins, "Losses": losses})
-            
 
         print(f"--- End of Game {game} ---")
         print(f"Total Hands Played: {game_hand_count}")
         print(f"Final Bankrolls - Player: {player_bankroll}, Opponent: {opponent_bankroll}")
         print("Bankrolls will be reset for the next game.\n")
+

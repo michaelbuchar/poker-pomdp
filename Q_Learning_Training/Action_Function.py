@@ -1,7 +1,7 @@
 import random
 import math
 
-def handle_action(entity, action_space, bankroll, previous_bet, pot, is_river, raise_count):
+def handle_action(entity, action_space, bankroll, previous_bet, pot, is_river, raise_count,policy_action):
     # Action function for a game of poker
     ##entity = either "Player" or "Opponent".
     ##action_space = possible actions in a list
@@ -71,7 +71,11 @@ def handle_action(entity, action_space, bankroll, previous_bet, pot, is_river, r
     if is_river and raise_count >= 2: #limit actions on the river after a raise/re-raise to not drain bankroll for data generation
         action_space = ["Call", "Fold"]
 
-    action = select_action(action_space, bankroll, previous_bet, pot) #select action and update bets and pot
+    if policy_action != [] and policy_action in action_space:
+        action = policy_action
+        print("Hey")
+    else:
+        action = select_action(action_space, bankroll, previous_bet, pot) #select action and update bets and pot
     if action in ["Raise Big", 'Raise Small']:
         raise_count += 1
     bankroll, bet = apply_action_to_game(action, bankroll, previous_bet)

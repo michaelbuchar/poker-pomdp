@@ -3,6 +3,8 @@ import numpy as np
 from collections import defaultdict
 from multiprocessing import Pool, Manager, cpu_count
 import time
+import os
+import csv
 
 # Function to initialize Q-table entries
 def initialize_q(actions_count):
@@ -10,9 +12,10 @@ def initialize_q(actions_count):
     return np.zeros(actions_count)
 
 # Function to process a chunk of data
-def process_chunk(chunk, action_mapping, learning_rate, discount_factor, state_features, actions_count, worker_id):
+def process_chunk(chunk, action_mapping, learning_rate, discount_factor, state_features, actions_count, global_Q, worker_id):
     print(f"Worker {worker_id}: Processing {len(chunk)} rows...")
-    local_Q = defaultdict(lambda: initialize_q(actions_count))
+    local_Q = defaultdict(lambda: initialize_q(actions_count), global_Q.copy())  # Start from global Q
+
     for idx, row in chunk.iterrows():
         state = tuple(map(int, row[state_features].values))  # Ensure state is a tuple of Python integers
         next_state = tuple(map(int, row[['Next ' + feature for feature in state_features]].values))  # Ensure the same for next state
@@ -24,7 +27,9 @@ def process_chunk(chunk, action_mapping, learning_rate, discount_factor, state_f
 
         # Update Q-value locally
         max_future_Q = np.max(local_Q[next_state]) if next_state in local_Q else 0
-        local_Q[state][action_idx] += learning_rate * (reward + discount_factor * max_future_Q - local_Q[state][action_idx])
+        local_Q[state][action_idx] += learning_rate * (
+            reward + discount_factor * max_future_Q - local_Q[state][action_idx]
+        )
 
     print(f"Worker {worker_id}: Finished processing.")
     return dict(local_Q)
@@ -35,13 +40,31 @@ def merge_Q_tables(Q, local_Q, worker_id, actions_count):
     for state, values in local_Q.items():
         if state not in Q:
             Q[state] = np.zeros(actions_count)  # Initialize if not exists
-        Q[state] += values  # Add values from local_Q
+        # Incremental averaging
+        Q[state] = Q[state] + (values - Q[state]) / 2  # Weighted update to avoid linear growth
     print(f"Worker {worker_id}: Results merged.")
+
+# Save Q-table after each epoch
+def save_Q_to_csv(Q, epoch):
+    file_name = f"Q Tables/Q_table_epoch_{epoch}.csv"
+    with open(file_name, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(['State', 'Action Index', 'Q-Value'])  # Header row
+        for state, q_values in Q.items():
+            for action_idx, q_value in enumerate(q_values):
+                writer.writerow([state, action_idx, q_value])
+    print(f"Q-table saved to {file_name}")
+
+# Function to print sample Q-values for debugging
+def print_sample_q_values(Q, epoch):
+    print(f"\nSample Q-values after Epoch {epoch}:")
+    for state, values in list(Q.items())[:5]:  # Print only a few states for readability
+        print(f"State {state}: {values}")
 
 # Main execution block
 if __name__ == '__main__':
     # Load training data
-    training_data = pd.read_csv('poker_training_data_large_condensed.csv')
+    training_data = pd.read_csv('Processed_TrainingDataTotal.csv')
 
     # Define state features and state space ranges
     state_features = [
@@ -62,9 +85,9 @@ if __name__ == '__main__':
     Q = manager.dict()
 
     # Hyperparameters
-    learning_rate = 0.1
+    learning_rate = 0.5
     discount_factor = 0.95
-    epochs = 10
+    epochs = 5  # Increase epochs for better convergence
     num_workers = cpu_count()
 
     # Split data into chunks
@@ -81,7 +104,7 @@ if __name__ == '__main__':
         with Pool(num_workers) as pool:
             results = pool.starmap(
                 process_chunk,
-                [(chunk, action_mapping, learning_rate, discount_factor, state_features, actions_count, worker_id)
+                [(chunk, action_mapping, learning_rate, discount_factor, state_features, actions_count, dict(Q), worker_id)
                  for worker_id, chunk in enumerate(chunks)]
             )
 
