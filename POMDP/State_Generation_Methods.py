@@ -2,43 +2,9 @@ import csv
 from treys import Card
 import Game_Methods
 
-def classify_hand_strength(hole_cards, board_cards):
-    """
-    Classify the opponent's hand strength into one of 5 buckets based on the game state.
-    Strength Levels: 1 = Very Weak, 2 = Weak, 3 = Moderate, 4 = Strong, 5 = Very Strong
-    """
-    if not board_cards:  # Pre-flop scenario
-        # Use heuristics to assign strength based on hole cards
-        rank_strength = Game_Methods.evaluate_hole_card_strength(hole_cards)
-        if rank_strength > 80:  # We can adjust thresholds or change to random here
-            return 5  # Very Strong
-        elif rank_strength > 60:
-            return 4  # Strong
-        elif rank_strength > 40:
-            return 3  # Moderate
-        elif rank_strength > 20:
-            return 2  # Weak
-        else:
-            return 1  # Very Weak
-
-    # If board cards are present, calculate hand ranking
-    complete_hand = hole_cards + board_cards
-    hand_rank = Game_Methods.evaluate_hand_rank(complete_hand)  # Returns numerical rank
-
-    if hand_rank > 7500:  # Very high hand rank
-        return 5  # Very Strong
-    elif hand_rank > 5000:
-        return 4  # Strong
-    elif hand_rank > 3000:
-        return 3  # Moderate
-    elif hand_rank > 1000:
-        return 2  # Weak
-    else:
-        return 1  # Very Weak
-
-def generate_state(hole_cards, board_cards, hole_card_probability_file):
+def generate_state(hole_cards, opponent_hole_cards, board_cards, hole_card_probability_file):
     # gather all state data for storage
-    win_prob = lookup_hole_card_win_probability(
+    win_prob_player = lookup_hole_card_win_probability(
         f"{Card.int_to_pretty_str(hole_cards[0])} {Card.int_to_pretty_str(hole_cards[1])}",
         hole_card_probability_file
     )  # find win probability
@@ -63,19 +29,19 @@ def generate_state(hole_cards, board_cards, hole_card_probability_file):
         board_state_features = get_board_state_features(board_cards)
         player_board_features = get_player_board_features(hole_cards, board_cards)
 
-    # Simulate opponent hole cards if not directly known
-    opponent_hole_cards = Game_Methods.simulate_opponent_hole_cards(hole_card_probability_file)
-
     # Add opponent hand strength to state
-    opponent_hand_strength = classify_hand_strength(opponent_hole_cards, board_cards)
+    opponent_card_strength = lookup_hole_card_win_probability(
+        f"{Card.int_to_pretty_str(opponent_hole_cards[0])} {Card.int_to_pretty_str(opponent_hole_cards[1])}",
+        hole_card_probability_file
+    )  # find win probability
 
     return {  # combine into single dictionary
-        "Win Bucket": calc_win_state_bucket(win_prob),
+        "Win Bucket": calc_win_state_bucket(win_prob_player),
         "Suited": is_paired([hole_cards[0], hole_cards[1]]),
         "Connectedness": int(abs(Card.get_rank_int(hole_cards[0]) - Card.get_rank_int(hole_cards[1])) == 1),
         "High Card": int(Card.get_rank_int(hole_cards[0]) >= 9 or Card.get_rank_int(hole_cards[1]) >= 9),
         "Flop Status": flop_status,  # 0: No flop, 1: Flop, 2: Turn, 3: River
-        "Opponent Hand Strength": opponent_hand_strength,  # Add opponent hand strength
+        "Opponent Hand Strength": calc_opponent_win_state_bucket(opponent_card_strength) ,  # Add opponent hand strength
         **board_state_features,
         **player_board_features,
     }
@@ -101,6 +67,19 @@ def calc_win_state_bucket(win_prob):
         win_bucket = 2  # medium
     elif win_prob <= 0.99:
         win_bucket = 3  # strong
+    return win_bucket
+
+def calc_opponent_win_state_bucket(win_prob):
+    if win_prob < 0.2:
+        win_bucket = 1  # very weak
+    elif win_prob < 0.4:
+        win_bucket = 2  # weak
+    elif win_prob < 0.6:
+        win_bucket = 3  # medium
+    elif win_prob < 0.8:
+        win_bucket = 4  # strong
+    elif win_prob <= 0.99:
+        win_bucket = 5  # very strong
     return win_bucket
 
 def is_paired(cards):
