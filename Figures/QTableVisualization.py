@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 # Load the data from the CSV file (first 100 rows only)
-file_path = 'q_table_epoch_1.csv'  # Replace with your actual file path
+file_path = "QTableVisualization.csv"  # Replace with your actual file path
 data = pd.read_csv(file_path)
 
 # Extract the last 7 columns and limit to the first 100 rows

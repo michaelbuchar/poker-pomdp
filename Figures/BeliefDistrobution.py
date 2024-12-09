@@ -8,15 +8,6 @@ import pandas as pd
 
 
 def load_results_from_csv(csv_filename="simulation_results.csv"):
-    """
-    Load simulation results from a CSV file.
-    
-    Parameters:
-    - csv_filename: The name of the CSV file to load.
-    
-    Returns:
-    - A dictionary where keys are actions and values are lists of updated belief states.
-    """
     df = pd.read_csv(csv_filename)
     results = defaultdict(list)
     for action in df['Action'].unique():
@@ -34,9 +25,9 @@ def T(s, a, s_prime):
     elif a in ["Bet Small"]:
         base_probability = 0.6 if s_prime > s else 0.5
     elif a == "Call":
-        base_probability = 0.6 if s_prime > s else 0.4  # Shift slightly toward weaker states
+        base_probability = 0.6 if s_prime > s else 0.4  
     elif a == "Check":
-        base_probability = 0.7 if s_prime > s else 0.3  # Shift more strongly toward stronger states
+        base_probability = 0.7 if s_prime > s else 0.3 
     elif a == "Fold":
         base_probability = 0.9 if s_prime <= s else 0.1
     else:
@@ -108,14 +99,7 @@ def run_simulation(action, initial_belief, T, O, num_simulations):
             print(f"Worker {i + 1}/{num_workers} completed its batch.")
     return results
 
-def save_results_to_csv(results, csv_filename="simulation_results.csv"):
-    """
-    Save simulation results to a CSV file.
-    
-    Parameters:
-    - results: A dictionary where keys are actions and values are lists of updated belief states.
-    - csv_filename: The name of the CSV file to save the results to.
-    """
+def save_results_to_csv(results, csv_filename):
     # Prepare a DataFrame
     all_results = []
     for action, data in results.items():
@@ -126,12 +110,6 @@ def save_results_to_csv(results, csv_filename="simulation_results.csv"):
     print(f"Results saved to {csv_filename}")
 
 def plot_individual_distributions(results):
-    """
-    Plot individual distributions for each action as subplots with shared axis labels and gridlines behind the histograms.
-    
-    Parameters:
-    - results: A dictionary where keys are actions and values are lists of updated belief states.
-    """
     actions = list(results.keys())
     num_actions = len(actions)
     
@@ -164,14 +142,13 @@ def plot_individual_distributions(results):
             alpha=0.7, 
             edgecolor='black', 
             label=action, 
-            zorder=3  # Ensure histograms are in front of gridlines
+            zorder=3 
         )
-        #ax.set_title(f"{action}", fontsize=14, pad=15)  # Add padding to move the title further up
         ax.legend(loc="upper right")
         ax.grid(which='major', linestyle='-', linewidth=0.75, alpha=0.9, zorder=0)
         ax.grid(which='minor', linestyle='--', linewidth=0.5, alpha=0.7, zorder=0)
         ax.minorticks_on()
-        ax.set_xlim(1, 5)  # Constrain x-axis range to [1, 5]
+        ax.set_xlim(1, 5) 
 
     # Set shared labels and title with more spacing
     fig.text(0.5, 0, "Updated Belief State", ha="center", fontsize=14)  # Shared x-axis label
@@ -181,23 +158,20 @@ def plot_individual_distributions(results):
     plt.tight_layout(rect=[0.03, 0.05, 1, 0.94])  # Adjust layout for better spacing
     plt.show()
 
-
-# Simulation parameters
 actions = ["Check", "Fold", "Call", "Bet Small", "Bet Big", "Raise Small", "Raise Big"]
 num_simulations = 20000
 initial_belief = 3.0
-runsims = True
+runsims = False #Change this to run new data
 
 if runsims:
-    # Run simulations for all actions
     results = defaultdict(list)
     for action in actions:
         results[action] = run_simulation(action, initial_belief, T, O, num_simulations)
 
     # Save results to CSV
-    save_results_to_csv(results, "simulation_results.csv")
+    save_results_to_csv(results, "BeliefDistrobution.csv")
 else:
-    results = load_results_from_csv("simulation_results.csv")
+    results = load_results_from_csv("BeliefDistrobution.csv")
 
 # Plot individual distributions
 plot_individual_distributions(results)

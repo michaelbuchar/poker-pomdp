@@ -5,23 +5,22 @@ import matplotlib.cm as cm
 import matplotlib.colors as mcolors
 
 # Load the data
-data = pd.read_csv("hole_card_simulation_results.csv")
+data = pd.read_csv("Dirichlet_Win_Prob.csv")
 
 # Define a mapping for card values
 card_value_map = {'Ace': 14, 'King': 13, 'Queen': 12, 'Jack': 11, '10': 10, '9': 9, '8': 8, '7': 7, '6': 6, '5': 5, '4': 4, '3': 3, '2': 2}
 
-# Function to extract card rank (e.g., '[2♣]' -> '2', '[A♣]' -> 'Ace')
+# Function to extract card rank
 def extract_card_rank(card_str):
-    # Extract the rank (e.g., '2' from '[2♣]', 'A' from '[A♣]')
     rank = card_str.strip('[]').split(' ')[0][:-1]  # Remove suit and brackets, keep the rank
     # Map special card ranks
-    if rank == 'A':  # If the rank is 'A', map it to 'Ace'
+    if rank == 'A': 
         return 'Ace'
-    elif rank == 'K':  # Map 'K' to 'King'
+    elif rank == 'K':  
         return 'King'
-    elif rank == 'Q':  # Map 'Q' to 'Queen'
+    elif rank == 'Q': 
         return 'Queen'
-    elif rank == 'J':  # Map 'J' to 'Jack'
+    elif rank == 'J': 
         return 'Jack'
     return rank  # Return the rank as it is for other cards
 
@@ -44,7 +43,6 @@ data_unique['Card_pair_value'] = data_unique['Card1_value'] + data_unique['Card2
 norm = mcolors.Normalize(vmin=4, vmax=26)  # Set vmax=4 (2 2) and vmin=26 (Ace Ace)
 cmap = cm.viridis  # Use the viridis colormap, but you can choose others
 
-# Stretch factor for the vertices to space out the triangles
 stretch_factor_x = 1.5  # Stretch the x-axis
 stretch_factor_y = 1.5  # Stretch the y-axis
 
@@ -126,14 +124,14 @@ for i, row in data_unique.iterrows():
     point_x, point_y = zip(*point_coords)  # Unzip the coordinates for plotting
     ax.plot(point_x, point_y, color=cmap(norm(row['Card_pair_value'])), lw=0.5)  # Thin line connecting the points
 
-# Add labels at the triangle vertices (apply rotation to the labels)
+
 ax.text(
     *rotate_point(*transformed_coords(1.03, 0, 0), rotation_angle),
     'Win',
     verticalalignment='bottom',
     horizontalalignment='center',
-    fontsize=14,  # Increase the font size
-    fontweight='bold'  # Make the text bold
+    fontsize=14,  
+    fontweight='bold' 
 )
 
 ax.text(
@@ -141,8 +139,8 @@ ax.text(
     'Loss',
     verticalalignment='bottom',
     horizontalalignment='center',
-    fontsize=14,  # Increase the font size
-    fontweight='bold'  # Make the text bold
+    fontsize=14,  
+    fontweight='bold' 
 )
 
 ax.text(
@@ -150,21 +148,20 @@ ax.text(
     'Split',
     verticalalignment='bottom',
     horizontalalignment='center',
-    fontsize=14,  # Increase the font size
-    fontweight='bold'  # Make the text bold
+    fontsize=14, 
+    fontweight='bold'  
 )
 
-# Add gridlines inside the triangle
 num_gridlines = 10  # Number of gridlines inside the triangle
 
 for i in range(1, num_gridlines):
     # Interpolate points along the edges
     fraction = i / num_gridlines
-    start1 = transformed_coords(fraction, 1 - fraction, 0)  # Parallel to Win-Loss
+    start1 = transformed_coords(fraction, 1 - fraction, 0) 
     end1 = transformed_coords(fraction, 0, 1 - fraction)
-    start2 = transformed_coords(0, fraction, 1 - fraction)  # Parallel to Loss-Split
+    start2 = transformed_coords(0, fraction, 1 - fraction) 
     end2 = transformed_coords(1 - fraction, fraction, 0)
-    start3 = transformed_coords(1 - fraction, 0, fraction)  # Parallel to Split-Win
+    start3 = transformed_coords(1 - fraction, 0, fraction) 
     end3 = transformed_coords(0, 1 - fraction, fraction)
 
     # Rotate the gridline points
@@ -182,9 +179,9 @@ for i in range(1, num_gridlines):
 
 # Add a color bar as the legend
 sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
-sm.set_array([])  # Empty array for the colorbar
-cbar = fig.colorbar(sm, ax=ax)  # Use 'ax=ax' to link the color bar with the plot
-cbar.set_label("Card Pair Value (2 2 -> Ace Ace)")
+sm.set_array([])  
+cbar = fig.colorbar(sm, ax=ax) 
+cbar.set_label("Card Pair Value (2 2 -> A A)")
 
 ax.spines['top'].set_visible(False)
 ax.spines['right'].set_visible(False)
@@ -193,5 +190,4 @@ ax.spines['bottom'].set_visible(False)
 ax.set_xticks([])
 ax.set_yticks([])
 
-# Show the plot
 plt.show()
