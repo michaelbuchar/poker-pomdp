@@ -4,9 +4,9 @@ This repository implements a Partially Observable Markov Decision Process (POMDP
 
 ---
 
-## Introduction
+## More Information
 
-Refer to the document AA228_Final_Project.pdf for an overview of the results of the POMDP and MDP training using Q-learning.
+Refer to the document AA228_Final_Project.pdf for an overview of the project and results of the POMDP and MDP training using Q-learning.
 
 ---
 
